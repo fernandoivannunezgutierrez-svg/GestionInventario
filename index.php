@@ -3,19 +3,65 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Gestión de Inventario Pyme — Control de Stock y Ganancias</title>
+  <title>Gestión de Inventario Pyme — Multi-Tienda &amp; POS</title>
   <link rel="stylesheet" href="assets/css/styles.css">
 </head>
 <body>
-  <div class="app-shell">
-    <!-- Sidebar -->
+
+  <!-- ==================== LOGIN SCREEN ==================== -->
+  <div id="login-screen" class="login-wrapper" style="display:none;">
+    <div class="login-card">
+      <div class="login-header">
+        <div class="login-logo">GI</div>
+        <h1 style="font-size:20px; font-weight:800;">Gestión de Inventario Pyme</h1>
+        <p class="text-muted" style="font-size:13px;">Inicia sesión como Dueño/Administrador o Vendedor</p>
+      </div>
+
+      <form id="login-form">
+        <div class="form-group" style="margin-bottom:12px;">
+          <label for="login-username">Usuario</label>
+          <input type="text" id="login-username" class="form-control" placeholder="Ej: admin o vendedor1" autocomplete="username">
+        </div>
+        <div class="form-group" style="margin-bottom:14px;">
+          <label for="login-password">Contraseña / PIN</label>
+          <input type="password" id="login-password" class="form-control" placeholder="••••••••" autocomplete="current-password">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%; padding:11px; font-size:14.5px;">
+          Ingresar al Sistema
+        </button>
+      </form>
+
+      <div style="margin:16px 0; text-align:center; font-size:12px; color:var(--text-muted);">— o ingresa con tarjeta / escáner —</div>
+
+      <form id="login-card-form" style="display:flex; gap:8px;">
+        <input type="text" id="login-card-code" class="form-control" placeholder="Escanea o escribe código de tarjeta (ej: VEND-001)">
+        <button type="submit" class="btn btn-outline">Entrar</button>
+      </form>
+
+      <div class="login-demo-hint">
+        <strong>Accesos iniciales (cámbialos en Tiendas y Vendedores):</strong><br>
+        • Dueño/Admin: <code>admin</code> / <code>admin123</code><br>
+        • Vendedor Tienda 1: <code>vendedor1</code> / <code>1234</code> (o tarjeta <code>VEND-001</code>)
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== ADMIN / DUEÑO SHELL ==================== -->
+  <div id="admin-shell" class="app-shell" style="display:none;">
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-icon">GI</div>
         <div>
           <div class="brand-title" id="sidebar-business-name">Mi Negocio Pyme</div>
-          <div class="brand-sub">Inventario, Costos y Ganancias</div>
+          <div class="brand-sub">Panel Dueño / Administrador</div>
         </div>
+      </div>
+
+      <div class="store-switcher-box">
+        <label class="store-switcher-label" for="admin-store-select">Tienda Activa</label>
+        <select id="admin-store-select" class="store-select">
+          <option value="all">🌐 Vista Global (Todas)</option>
+        </select>
       </div>
 
       <nav class="nav-list">
@@ -35,6 +81,9 @@
         <button class="nav-btn" data-view="movements">
           <span>📋</span> Kardex / Movimientos
         </button>
+        <button class="nav-btn" data-view="stores-users">
+          <span>🏪</span> Tiendas y Vendedores
+        </button>
         <button class="nav-btn" data-view="settings">
           <span>⚙️</span> Configuración
         </button>
@@ -43,16 +92,22 @@
       <div class="sidebar-footer">
         <div><span class="badge badge-green">Verde</span> = Ganancias netas</div>
         <div style="margin-top:6px;"><span class="badge badge-orange">Naranja</span> = Movimiento de dinero</div>
+        <div class="user-footer-box">
+          <div>
+            <div style="color:#fff; font-weight:600;" id="admin-user-name">Admin</div>
+            <div style="font-size:11px;">Administrador</div>
+          </div>
+          <button class="btn btn-sm btn-outline" id="btn-admin-logout" style="padding:5px 9px;">Salir</button>
+        </div>
       </div>
     </aside>
 
-    <!-- Main Content -->
     <main class="main-content">
       <!-- ==================== DASHBOARD ==================== -->
       <section id="view-dashboard" class="view-section active">
         <div class="topbar">
           <div>
-            <h1 class="page-title">Resumen General del Negocio</h1>
+            <h1 class="page-title">Resumen General <span id="dash-store-label" class="badge badge-blue" style="vertical-align:middle;">Vista Global</span></h1>
             <p class="page-subtitle">Control en tiempo real de stock, movimiento de dinero y ganancias netas</p>
           </div>
           <div class="topbar-actions">
@@ -85,6 +140,28 @@
             <div class="kpi-label">Impuestos &amp; Estado de Stock</div>
             <div class="kpi-value num" id="kpi-total-taxes">$0</div>
             <div class="kpi-sub"><span id="kpi-total-products">0</span> productos · <span id="kpi-low-stock-text">0 con stock bajo</span></div>
+          </div>
+        </div>
+
+        <div class="card" id="dash-stores-card">
+          <div class="card-header">
+            <h2 class="card-title">🏪 Comparativa por Tienda (Global)</h2>
+            <button class="btn btn-sm btn-outline" onclick="switchView('stores-users')">Gestionar tiendas</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tienda</th>
+                  <th class="text-right">Capital en Stock (Costo)</th>
+                  <th class="text-right">Compras</th>
+                  <th class="text-right">Ventas (Naranja)</th>
+                  <th class="text-right">Ganancias (Verde)</th>
+                  <th class="text-right">Ver</th>
+                </tr>
+              </thead>
+              <tbody id="dash-stores-body"></tbody>
+            </table>
           </div>
         </div>
 
@@ -140,6 +217,7 @@
               <thead>
                 <tr>
                   <th>Fecha</th>
+                  <th>Tienda</th>
                   <th>Tipo</th>
                   <th>Producto</th>
                   <th class="text-right">Cantidad</th>
@@ -194,7 +272,7 @@
         </div>
       </section>
 
-      <!-- ==================== SALES (POS) ==================== -->
+      <!-- ==================== SALES (ADMIN) ==================== -->
       <section id="view-sales" class="view-section">
         <div class="topbar">
           <div>
@@ -272,6 +350,21 @@
               </div>
             </div>
 
+            <div class="form-grid" style="margin-bottom:12px;">
+              <div class="form-group">
+                <label for="sale-store-select">Tienda</label>
+                <select id="sale-store-select" class="form-control"></select>
+              </div>
+              <div class="form-group">
+                <label for="sale-payment-method">Medio de Pago</label>
+                <select id="sale-payment-method" class="form-control">
+                  <option value="cash">Efectivo</option>
+                  <option value="card">Tarjeta (Transbank / MP)</option>
+                  <option value="transfer">Transferencia</option>
+                </select>
+              </div>
+            </div>
+
             <div class="form-group" style="margin-bottom:12px;">
               <label for="sale-customer">Cliente (opcional)</label>
               <input type="text" id="sale-customer" class="form-control" placeholder="Ej: Cliente mostrador / Empresa X">
@@ -297,6 +390,7 @@
                 <tr>
                   <th>#</th>
                   <th>Fecha</th>
+                  <th>Tienda / Vendedor</th>
                   <th>Cliente / Detalle</th>
                   <th class="text-right">Total Venta (Dinero)</th>
                   <th class="text-right">IVA + Imp.</th>
@@ -315,7 +409,7 @@
         <div class="topbar">
           <div>
             <h1 class="page-title">Compras y Entradas de Mercadería</h1>
-            <p class="page-subtitle">Registra lo que llega al negocio, actualiza el stock y el valor de inversión en inventario</p>
+            <p class="page-subtitle">Registra lo que llega a cada tienda, actualiza el stock y el valor de inversión en inventario</p>
           </div>
         </div>
 
@@ -327,7 +421,11 @@
 
             <form id="purchase-form">
               <div class="form-grid">
-                <div class="form-group" style="grid-column: span 2;">
+                <div class="form-group">
+                  <label for="pur-store">Tienda Destino</label>
+                  <select id="pur-store" class="form-control" required></select>
+                </div>
+                <div class="form-group">
                   <label for="pur-product">Producto</label>
                   <select id="pur-product" class="form-control" required></select>
                 </div>
@@ -367,7 +465,7 @@
                 <span class="num" id="pur-calc-total">$0</span>
               </div>
               <div class="calc-row">
-                <span>Stock Actual</span>
+                <span>Stock Actual en Tienda</span>
                 <span class="num" id="pur-calc-stock-before">0</span>
               </div>
               <div class="calc-row">
@@ -391,6 +489,7 @@
               <thead>
                 <tr>
                   <th>Fecha</th>
+                  <th>Tienda</th>
                   <th>Producto</th>
                   <th class="text-right">Cantidad</th>
                   <th class="text-right">Costo Unit.</th>
@@ -440,6 +539,7 @@
               <thead>
                 <tr>
                   <th>Fecha</th>
+                  <th>Tienda</th>
                   <th>Tipo</th>
                   <th>Producto</th>
                   <th class="text-right">Cantidad</th>
@@ -451,6 +551,64 @@
                 </tr>
               </thead>
               <tbody id="movements-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==================== STORES & EMPLOYEES ==================== -->
+      <section id="view-stores-users" class="view-section">
+        <div class="topbar">
+          <div>
+            <h1 class="page-title">Tiendas y Empleados de Venta</h1>
+            <p class="page-subtitle">Organiza tus sucursales y controla las ventas diarias de cada vendedor</p>
+          </div>
+          <div class="topbar-actions">
+            <button class="btn btn-outline" id="btn-new-store">+ Nueva Tienda</button>
+            <button class="btn btn-primary" id="btn-new-user">+ Nuevo Vendedor / Usuario</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">🏪 Sucursales / Tiendas</h2>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tienda</th>
+                  <th>Dirección / Teléfono</th>
+                  <th class="text-right">Vendedores</th>
+                  <th class="text-right">Stock en Costo</th>
+                  <th class="text-right">Ventas Totales</th>
+                  <th class="text-right">Ganancias</th>
+                </tr>
+              </thead>
+              <tbody id="stores-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">👥 Vendedores y Ventas Diarias</h2>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Nombre / Usuario</th>
+                  <th>Rol</th>
+                  <th>Tienda Asignada</th>
+                  <th>Tarjeta / Código</th>
+                  <th class="text-right">Ventas Hoy</th>
+                  <th class="text-right">Vendido Hoy (Naranja)</th>
+                  <th class="text-right">Ganancia Hoy (Verde)</th>
+                  <th class="text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="users-table-body"></tbody>
             </table>
           </div>
         </div>
@@ -525,6 +683,166 @@
     </main>
   </div>
 
+  <!-- ==================== SELLER / VENDEDOR POS SHELL ==================== -->
+  <div id="seller-shell" class="seller-shell" style="display:none;">
+    <header class="seller-topbar">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div class="brand-icon" style="width:34px; height:34px; font-size:14px;">POS</div>
+        <div>
+          <div style="font-weight:700; font-size:15px;" id="seller-business-name">Mi Negocio Pyme</div>
+          <div style="font-size:12px; color:#94a3b8;">
+            <span id="seller-store-name">Tienda 1</span> · Vendedor: <strong style="color:#fff;" id="seller-user-name">Vendedor</strong>
+          </div>
+        </div>
+      </div>
+
+      <div class="seller-nav">
+        <button class="seller-nav-btn active" data-seller-view="pos">🛒 Punto de Venta</button>
+        <button class="seller-nav-btn" data-seller-view="stock">📦 Stock Disponible</button>
+        <button class="seller-nav-btn" data-seller-view="mysales">🧾 Mis Ventas</button>
+        <button class="btn btn-sm btn-outline" id="btn-seller-logout" style="color:#fff; border-color:rgba(255,255,255,0.25); background:transparent;">Salir</button>
+      </div>
+    </header>
+
+    <main class="seller-main">
+      <!-- Seller POS -->
+      <section id="seller-view-pos" class="seller-view">
+        <div class="grid-pos">
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">Escanear o Buscar Producto</h2>
+            </div>
+
+            <div class="form-grid" style="margin-bottom:14px;">
+              <div class="form-group" style="grid-column: span 2;">
+                <label for="seller-scan-input">Código SKU / Escáner o Nombre</label>
+                <input type="text" id="seller-scan-input" class="form-control" placeholder="Escanea código de barras o escribe nombre y presiona Enter...">
+              </div>
+              <div class="form-group">
+                <label for="seller-qty-input">Cantidad</label>
+                <input type="number" id="seller-qty-input" class="form-control" step="any" min="0.001" value="1">
+              </div>
+            </div>
+
+            <div class="form-grid" style="margin-bottom:16px;">
+              <div class="form-group" style="grid-column: span 2;">
+                <label for="seller-product-select">O selecciona de la lista</label>
+                <select id="seller-product-select" class="form-control"></select>
+              </div>
+              <div class="form-group" style="justify-content:flex-end;">
+                <button type="button" class="btn btn-primary" id="btn-seller-add" style="margin-top:auto;">+ Agregar</button>
+              </div>
+            </div>
+
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Producto</th>
+                    <th class="text-right">Cantidad</th>
+                    <th class="text-right">Precio Unit.</th>
+                    <th class="text-right">Subtotal</th>
+                    <th class="text-right"></th>
+                  </tr>
+                </thead>
+                <tbody id="seller-cart-body"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h2 class="card-title">Cobro y Vuelto Automático</h2>
+            </div>
+
+            <div class="calc-box" style="margin-bottom:14px;">
+              <div class="calc-row highlight-orange" style="font-size:20px;">
+                <span>TOTAL A PAGAR</span>
+                <span class="num" id="seller-total-gross">$0</span>
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom:12px;">
+              <label for="seller-payment-method">Medio de Pago</label>
+              <select id="seller-payment-method" class="form-control">
+                <option value="cash">💵 Efectivo</option>
+                <option value="card">💳 Tarjeta (Transbank / Mercado Pago)</option>
+                <option value="transfer">🏦 Transferencia</option>
+              </select>
+            </div>
+
+            <div id="seller-cash-box" style="margin-bottom:14px;">
+              <div class="form-group">
+                <label for="seller-cash-received">Cliente paga con ($)</label>
+                <input type="number" id="seller-cash-received" class="form-control num" step="1" min="0" placeholder="Ej: 10000">
+              </div>
+              <div class="change-box">
+                <span style="font-weight:700; color:var(--profit-green);">VUELTO A ENTREGAR</span>
+                <span class="num" id="seller-cash-change" style="font-size:20px; font-weight:800; color:var(--profit-green);">$0</span>
+              </div>
+            </div>
+
+            <div class="form-group" style="margin-bottom:14px;">
+              <label for="seller-notes">N° Voucher / Nota (opcional)</label>
+              <input type="text" id="seller-notes" class="form-control" placeholder="Ej: Operación Transbank #1234">
+            </div>
+
+            <button type="button" class="btn btn-green" id="btn-seller-confirm" style="width:100%; padding:13px; font-size:15.5px;">
+              ✅ Cobrar y Registrar Venta
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Seller Stock -->
+      <section id="seller-view-stock" class="seller-view" style="display:none;">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Stock Disponible en Tienda</h2>
+            <input type="text" id="seller-stock-search" class="form-control" style="max-width:280px;" placeholder="Buscar producto o SKU...">
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Producto / SKU</th>
+                  <th>Categoría</th>
+                  <th class="text-right">Stock Disponible</th>
+                  <th class="text-right">Precio Final</th>
+                </tr>
+              </thead>
+              <tbody id="seller-stock-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Seller My Sales -->
+      <section id="seller-view-mysales" class="seller-view" style="display:none;">
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Mis Ventas Registradas</h2>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Fecha</th>
+                  <th>Detalle</th>
+                  <th>Pago</th>
+                  <th class="text-right">Total</th>
+                  <th class="text-right">Vuelto</th>
+                </tr>
+              </thead>
+              <tbody id="seller-sales-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
   <!-- ==================== MODAL: PRODUCTO ==================== -->
   <div class="modal-backdrop" id="modal-product">
     <div class="modal">
@@ -541,8 +859,8 @@
             <input type="text" id="p-name" class="form-control" placeholder="Ej: Lápiz Mina HB, Arroz Grado 1, Aceite Vegetal" required>
           </div>
           <div class="form-group">
-            <label for="p-sku">SKU / Código (opcional)</label>
-            <input type="text" id="p-sku" class="form-control" placeholder="Ej: LAP-001">
+            <label for="p-sku">SKU / Código de Barras</label>
+            <input type="text" id="p-sku" class="form-control" placeholder="Escanea o escribe SKU">
           </div>
           <div class="form-group">
             <label for="p-category">Categoría</label>
@@ -634,6 +952,10 @@
       </div>
       <form id="adjustment-form">
         <div class="form-group" style="margin-bottom:12px;">
+          <label for="adj-store">Tienda</label>
+          <select id="adj-store" class="form-control" required></select>
+        </div>
+        <div class="form-group" style="margin-bottom:12px;">
           <label for="adj-product">Producto</label>
           <select id="adj-product" class="form-control" required></select>
         </div>
@@ -655,6 +977,80 @@
         <div style="display:flex; justify-content:flex-end; gap:10px;">
           <button type="button" class="btn btn-outline" onclick="closeModal('modal-adjustment')">Cancelar</button>
           <button type="submit" class="btn btn-primary">Aplicar Ajuste</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: NUEVA TIENDA ==================== -->
+  <div class="modal-backdrop" id="modal-store">
+    <div class="modal" style="max-width:460px;">
+      <div class="modal-header">
+        <h2 class="card-title">Nueva Tienda / Sucursal</h2>
+        <button class="modal-close" onclick="closeModal('modal-store')">&times;</button>
+      </div>
+      <form id="store-form">
+        <div class="form-group" style="margin-bottom:12px;">
+          <label for="st-name">Nombre de la Tienda *</label>
+          <input type="text" id="st-name" class="form-control" placeholder="Ej: Tienda 2 - Sucursal Centro" required>
+        </div>
+        <div class="form-group" style="margin-bottom:12px;">
+          <label for="st-address">Dirección (opcional)</label>
+          <input type="text" id="st-address" class="form-control" placeholder="Ej: Av. Principal 450">
+        </div>
+        <div class="form-group" style="margin-bottom:18px;">
+          <label for="st-phone">Teléfono (opcional)</label>
+          <input type="text" id="st-phone" class="form-control" placeholder="Ej: +56 9 1234 5678">
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+          <button type="button" class="btn btn-outline" onclick="closeModal('modal-store')">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Crear Tienda</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== MODAL: NUEVO / EDITAR USUARIO ==================== -->
+  <div class="modal-backdrop" id="modal-user">
+    <div class="modal" style="max-width:520px;">
+      <div class="modal-header">
+        <h2 class="card-title" id="modal-user-title">Nuevo Vendedor / Usuario</h2>
+        <button class="modal-close" onclick="closeModal('modal-user')">&times;</button>
+      </div>
+      <form id="user-form">
+        <input type="hidden" id="u-id">
+        <div class="form-grid" style="margin-bottom:14px;">
+          <div class="form-group">
+            <label for="u-full-name">Nombre Completo *</label>
+            <input type="text" id="u-full-name" class="form-control" placeholder="Ej: Juan Pérez" required>
+          </div>
+          <div class="form-group">
+            <label for="u-username">Usuario *</label>
+            <input type="text" id="u-username" class="form-control" placeholder="Ej: jperez" required>
+          </div>
+          <div class="form-group">
+            <label for="u-role">Rol</label>
+            <select id="u-role" class="form-control">
+              <option value="seller">Vendedor (solo POS y Stock)</option>
+              <option value="admin">Dueño / Administrador</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="u-store">Tienda Asignada</label>
+            <select id="u-store" class="form-control"></select>
+          </div>
+          <div class="form-group">
+            <label for="u-password">Contraseña / PIN <span id="u-pass-hint" class="text-muted">(obligatoria)</span></label>
+            <input type="password" id="u-password" class="form-control" placeholder="••••••••">
+          </div>
+          <div class="form-group">
+            <label for="u-card-code">Código de Tarjeta (Escáner)</label>
+            <input type="text" id="u-card-code" class="form-control" placeholder="Ej: VEND-002">
+          </div>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+          <button type="button" class="btn btn-outline" onclick="closeModal('modal-user')">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar Usuario</button>
         </div>
       </form>
     </div>

@@ -5,6 +5,7 @@ require_once __DIR__ . '/db.php';
 
 try {
     $pdo = getPDO();
+    $user = requireAuth();
     $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
     if ($method === 'GET') {
@@ -15,6 +16,10 @@ try {
             'settings' => $settings,
             'categories' => $categories,
         ]);
+    }
+
+    if ($user['role'] !== 'admin') {
+        jsonError('Solo el administrador puede modificar la configuración.', 403);
     }
 
     if ($method === 'PUT') {

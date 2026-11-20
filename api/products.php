@@ -3,14 +3,37 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/db.php';
 
-function enrichProductRow(array $row): array
+function enrichProductRow(array $row, bool $isSeller = false): array
 {
     $stock = (float)$row['stock'];
+    $minStock = (float)$row['min_stock'];
     $cost = (float)$row['cost_price'];
     $net = (float)$row['sale_price_net'];
     $ivaRate = (float)$row['iva_rate'];
     $otherRate = (float)$row['other_tax_rate'];
     $final = (float)$row['sale_price_final'];
+
+    $base = [
+        'id' => (int)$row['id'],
+        'sku' => $row['sku'],
+        'name' => $row['name'],
+        'category_id' => $row['category_id'] ? (int)$row['category_id'] : null,
+        'category_name' => $row['category_name'] ?? null,
+        'category_color' => $row['category_color'] ?? null,
+        'measure_type' => $row['measure_type'],
+        'unit_label' => $row['unit_label'],
+        'allow_decimals' => (bool)$row['allow_decimals'],
+        'stock' => $stock,
+        'min_stock' => $minStock,
+        'iva_rate' => $ivaRate,
+        'other_tax_rate' => $otherRate,
+        'sale_price_final' => $final,
+        'is_low_stock' => $stock <= $minStock,
+    ];
+
+    if ($isSeller) {
+        return $base;
+    }
 
     $unitProfit = round($net - $cost, 2);
     $unitIva = round($net * ($ivaRate / 100.0), 2);
@@ -20,39 +43,48 @@ function enrichProductRow(array $row): array
     $stockPotentialProfit = round($stock * $unitProfit, 2);
     $marginPct = $cost > 0 ? round(($unitProfit / $cost) * 100, 1) : 0.0;
 
-    $row['stock'] = $stock;
-    $row['min_stock'] = (float)$row['min_stock'];
-    $row['cost_price'] = $cost;
-    $row['sale_price_net'] = $net;
-    $row['iva_rate'] = $ivaRate;
-    $row['other_tax_rate'] = $otherRate;
-    $row['sale_price_final'] = $final;
-    $row['allow_decimals'] = (bool)$row['allow_decimals'];
-    $row['unit_iva'] = $unitIva;
-    $row['unit_other_tax'] = $unitOtherTax;
-    $row['unit_profit'] = $unitProfit;
-    $row['margin_pct'] = $marginPct;
-    $row['stock_cost_value'] = $stockCostValue;
-    $row['stock_sale_value'] = $stockSaleValue;
-    $row['stock_potential_profit'] = $stockPotentialProfit;
-    $row['is_low_stock'] = $stock <= (float)$row['min_stock'];
-
-    return $row;
+    return array_merge($base, [
+        'cost_price' => $cost,
+        'sale_price_net' => $net,
+        'unit_iva' => $unitIva,
+        'unit_other_tax' => $unitOtherTax,
+        'unit_profit' => $unitProfit,
+        'margin_pct' => $marginPct,
+        'stock_cost_value' => $stockCostValue,
+        'stock_sale_value' => $stockSaleValue,
+        'stock_potential_profit' => $stockPotentialProfit,
+    ]);
 }
 
 try {
     $pdo = getPDO();
+    $user = requireAuth();
     $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+    $isSeller = $user['role'] === 'seller';
 
     if ($method === 'GET') {
         $search = trim((string)($_GET['search'] ?? ''));
         $categoryId = isset($_GET['category_id']) && $_GET['category_id'] !== '' ? (int)$_GET['category_id'] : null;
+        $storeId = resolveStoreId($_GET['store_id'] ?? null, $user, true);
 
-        $sql = 'SELECT p.*, c.name AS category_name, c.color AS category_color
-                FROM products p
-                LEFT JOIN categories c ON c.id = p.category_id
-                WHERE p.is_active = 1';
         $params = [];
+        if ($storeId !== null) {
+            $sql = 'SELECT p.*, c.name AS category_name, c.color AS category_color,
+                           COALESCE(ss.stock, 0) AS stock,
+                           COALESCE(ss.min_stock, p.min_stock) AS min_stock
+                    FROM products p
+                    LEFT JOIN categories c ON c.id = p.category_id
+                    LEFT JOIN store_stock ss ON ss.product_id = p.id AND ss.store_id = ?
+                    WHERE p.is_active = 1';
+            $params[] = $storeId;
+        } else {
+            $sql = 'SELECT p.*, c.name AS category_name, c.color AS category_color,
+                           COALESCE((SELECT SUM(ss.stock) FROM store_stock ss WHERE ss.product_id = p.id), p.stock) AS stock,
+                           p.min_stock AS min_stock
+                    FROM products p
+                    LEFT JOIN categories c ON c.id = p.category_id
+                    WHERE p.is_active = 1';
+        }
 
         if ($search !== '') {
             $sql .= ' AND (p.name LIKE ? OR p.sku LIKE ?)';
@@ -68,9 +100,13 @@ try {
 
         $stmt = $pdo->prepare($sql);
         $stmt->execute($params);
-        $rows = array_map('enrichProductRow', $stmt->fetchAll());
+        $rows = array_map(fn($r) => enrichProductRow($r, $isSeller), $stmt->fetchAll());
 
-        jsonResponse(['ok' => true, 'products' => $rows]);
+        jsonResponse(['ok' => true, 'products' => $rows, 'store_id' => $storeId]);
+    }
+
+    if ($isSeller) {
+        jsonError('Solo el administrador puede crear o editar productos.', 403);
     }
 
     if ($method === 'POST') {
@@ -80,6 +116,7 @@ try {
             jsonError('El nombre del producto es obligatorio.', 422);
         }
 
+        $storeId = resolveStoreId(isset($body['store_id']) ? (string)$body['store_id'] : null, $user, false) ?? 1;
         $sku = trim((string)($body['sku'] ?? ''));
         $sku = $sku === '' ? null : $sku;
         $categoryId = isset($body['category_id']) && $body['category_id'] !== '' ? (int)$body['category_id'] : null;
@@ -133,17 +170,26 @@ try {
         ]);
         $productId = (int)$pdo->lastInsertId();
 
-        // If initial stock > 0, record it as an initial purchase/stock entry
+        // Create store_stock rows for all active stores
+        $activeStores = $pdo->query('SELECT id FROM stores WHERE is_active = 1')->fetchAll(PDO::FETCH_COLUMN);
+        $ssIns = $pdo->prepare('INSERT INTO store_stock (store_id, product_id, stock, min_stock) VALUES (?, ?, ?, ?)');
+        foreach ($activeStores as $sid) {
+            $initialQty = ((int)$sid === $storeId) ? $stock : 0.0;
+            $ssIns->execute([(int)$sid, $productId, $initialQty, $minStock]);
+        }
+
         if ($stock > 0) {
             $moneyMovement = round($stock * $pricing['cost_price'], 2);
             $movStmt = $pdo->prepare(
                 'INSERT INTO inventory_movements
-                 (product_id, movement_type, quantity, stock_before, stock_after,
+                 (store_id, user_id, product_id, movement_type, quantity, stock_before, stock_after,
                   unit_cost, unit_price_final, money_movement, iva_amount, other_tax_amount,
                   net_amount, profit_amount, counterparty, notes)
-                 VALUES (?, ?, ?, 0, ?, ?, ?, ?, 0, 0, ?, 0, ?, ?)'
+                 VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, 0, 0, ?, 0, ?, ?)'
             );
             $movStmt->execute([
+                $storeId,
+                $user['id'],
                 $productId,
                 'purchase',
                 $stock,
@@ -160,12 +206,16 @@ try {
         $pdo->commit();
 
         $fetch = $pdo->prepare(
-            'SELECT p.*, c.name AS category_name, c.color AS category_color
-             FROM products p LEFT JOIN categories c ON c.id = p.category_id
+            'SELECT p.*, c.name AS category_name, c.color AS category_color,
+                    COALESCE(ss.stock, p.stock) AS stock,
+                    COALESCE(ss.min_stock, p.min_stock) AS min_stock
+             FROM products p
+             LEFT JOIN categories c ON c.id = p.category_id
+             LEFT JOIN store_stock ss ON ss.product_id = p.id AND ss.store_id = ?
              WHERE p.id = ?'
         );
-        $fetch->execute([$productId]);
-        $product = enrichProductRow($fetch->fetch());
+        $fetch->execute([$storeId, $productId]);
+        $product = enrichProductRow($fetch->fetch(), false);
 
         jsonResponse(['ok' => true, 'product' => $product], 201);
     }
@@ -184,6 +234,7 @@ try {
             jsonError('Producto no encontrado.', 404);
         }
 
+        $storeId = resolveStoreId(isset($body['store_id']) ? (string)$body['store_id'] : null, $user, true);
         $name = trim((string)($body['name'] ?? $existing['name']));
         if ($name === '') {
             jsonError('El nombre del producto es obligatorio.', 422);
@@ -247,13 +298,21 @@ try {
             $id,
         ]);
 
+        if ($storeId !== null) {
+            $pdo->prepare('UPDATE store_stock SET min_stock = ? WHERE store_id = ? AND product_id = ?')
+                ->execute([$minStock, $storeId, $id]);
+        } else {
+            $pdo->prepare('UPDATE store_stock SET min_stock = ? WHERE product_id = ?')
+                ->execute([$minStock, $id]);
+        }
+
         $fetch = $pdo->prepare(
             'SELECT p.*, c.name AS category_name, c.color AS category_color
              FROM products p LEFT JOIN categories c ON c.id = p.category_id
              WHERE p.id = ?'
         );
         $fetch->execute([$id]);
-        $product = enrichProductRow($fetch->fetch());
+        $product = enrichProductRow($fetch->fetch(), false);
 
         jsonResponse(['ok' => true, 'product' => $product]);
     }

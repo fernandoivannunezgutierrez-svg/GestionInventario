@@ -1,4 +1,7 @@
 const state = {
+  user: null,
+  stores: [],
+  activeStoreId: 'all', // 'all' or numeric string for admin; numeric for seller
   settings: {
     business_name: 'Mi Negocio Pyme',
     currency_symbol: '$',
@@ -10,6 +13,7 @@ const state = {
   categories: [],
   products: [],
   cart: [],
+  sellerCart: [],
 };
 
 // ==================== HELPERS ====================
@@ -19,6 +23,10 @@ async function api(url, options = {}) {
     ...options,
   });
   const data = await res.json();
+  if (res.status === 401 && !url.includes('auth.php')) {
+    showLoginScreen();
+    throw new Error(data.error || 'Sesión expirada.');
+  }
   if (!res.ok || data.ok === false) {
     throw new Error(data.error || `Error HTTP ${res.status}`);
   }
@@ -70,7 +78,125 @@ function closeModal(id) {
   document.getElementById(id).classList.remove('open');
 }
 
-// ==================== NAVIGATION ====================
+function getEffectiveStoreParam() {
+  if (state.user?.role === 'seller') {
+    return String(state.user.store_id || 1);
+  }
+  return state.activeStoreId || 'all';
+}
+
+function getConcreteStoreId() {
+  if (state.user?.role === 'seller') {
+    return Number(state.user.store_id || 1);
+  }
+  if (state.activeStoreId && state.activeStoreId !== 'all') {
+    return Number(state.activeStoreId);
+  }
+  return state.stores[0]?.id ? Number(state.stores[0].id) : 1;
+}
+
+// ==================== AUTH & SHELLS ====================
+function showLoginScreen() {
+  state.user = null;
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('admin-shell').style.display = 'none';
+  document.getElementById('seller-shell').style.display = 'none';
+}
+
+async function enterApp(user, stores = []) {
+  state.user = user;
+  state.stores = stores;
+  document.getElementById('login-screen').style.display = 'none';
+
+  await loadSettings();
+
+  if (user.role === 'admin') {
+    document.getElementById('seller-shell').style.display = 'none';
+    document.getElementById('admin-shell').style.display = 'flex';
+    document.getElementById('admin-user-name').textContent = user.full_name;
+    renderStoreSelectors();
+    switchView('dashboard');
+  } else {
+    document.getElementById('admin-shell').style.display = 'none';
+    document.getElementById('seller-shell').style.display = 'flex';
+    document.getElementById('seller-business-name').textContent = state.settings.business_name;
+    document.getElementById('seller-store-name').textContent = user.store_name || `Tienda ${user.store_id || 1}`;
+    document.getElementById('seller-user-name').textContent = user.full_name;
+    state.activeStoreId = String(user.store_id || 1);
+    switchSellerView('pos');
+  }
+}
+
+document.getElementById('login-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+  try {
+    const data = await api('api/auth.php', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    });
+    document.getElementById('login-password').value = '';
+    await enterApp(data.user, data.stores || []);
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+});
+
+document.getElementById('login-card-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const card_code = document.getElementById('login-card-code').value.trim();
+  if (!card_code) return;
+  try {
+    const data = await api('api/auth.php', {
+      method: 'POST',
+      body: JSON.stringify({ card_code }),
+    });
+    document.getElementById('login-card-code').value = '';
+    await enterApp(data.user, data.stores || []);
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+});
+
+async function logout() {
+  await api('api/auth.php', { method: 'DELETE' });
+  state.cart = [];
+  state.sellerCart = [];
+  showLoginScreen();
+}
+
+document.getElementById('btn-admin-logout').addEventListener('click', logout);
+document.getElementById('btn-seller-logout').addEventListener('click', logout);
+
+function renderStoreSelectors() {
+  const adminSel = document.getElementById('admin-store-select');
+  const cur = state.activeStoreId;
+  adminSel.innerHTML =
+    '<option value="all">🌐 Vista Global (Todas)</option>' +
+    state.stores.map((s) => `<option value="${s.id}">🏪 ${esc(s.name)}</option>`).join('');
+  adminSel.value = cur;
+
+  const storeOpts = state.stores.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  ['sale-store-select', 'pur-store', 'adj-store', 'u-store'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.innerHTML = storeOpts;
+      if (state.activeStoreId !== 'all') {
+        el.value = state.activeStoreId;
+      }
+    }
+  });
+}
+
+document.getElementById('admin-store-select').addEventListener('change', (e) => {
+  state.activeStoreId = e.target.value;
+  renderStoreSelectors();
+  const activeBtn = document.querySelector('.nav-btn.active');
+  switchView(activeBtn ? activeBtn.dataset.view : 'dashboard');
+});
+
+// ==================== ADMIN NAVIGATION ====================
 function switchView(viewName) {
   document.querySelectorAll('.nav-btn').forEach((btn) => {
     btn.classList.toggle('active', btn.dataset.view === viewName);
@@ -100,6 +226,9 @@ function switchView(viewName) {
       loadMovements();
     });
   }
+  if (viewName === 'stores-users') {
+    loadStoresAndUsers();
+  }
   if (viewName === 'settings') loadSettings();
 }
 
@@ -110,10 +239,14 @@ document.querySelectorAll('.nav-btn').forEach((btn) => {
 // ==================== INITIALIZATION ====================
 async function initApp() {
   try {
-    await loadSettings();
-    await loadProducts();
-    await loadDashboard();
+    const auth = await api('api/auth.php');
+    if (auth.user) {
+      await enterApp(auth.user, auth.stores || []);
+    } else {
+      showLoginScreen();
+    }
   } catch (err) {
+    showLoginScreen();
     toast(err.message, 'error');
   }
 }
@@ -125,15 +258,15 @@ async function loadSettings() {
 
   document.getElementById('sidebar-business-name').textContent = state.settings.business_name;
 
-  // Populate settings form
-  document.getElementById('set-business-name').value = state.settings.business_name;
-  document.getElementById('set-currency').value = state.settings.currency_symbol;
-  document.getElementById('set-iva').value = state.settings.default_iva_rate;
-  document.getElementById('set-other-tax').value = state.settings.default_other_tax_rate;
-  document.getElementById('set-decimals').value = String(state.settings.decimal_places);
-  document.getElementById('set-cost-method').value = state.settings.cost_method;
-
-  renderCategories();
+  if (state.user?.role === 'admin') {
+    document.getElementById('set-business-name').value = state.settings.business_name;
+    document.getElementById('set-currency').value = state.settings.currency_symbol;
+    document.getElementById('set-iva').value = state.settings.default_iva_rate;
+    document.getElementById('set-other-tax').value = state.settings.default_other_tax_rate;
+    document.getElementById('set-decimals').value = String(state.settings.decimal_places);
+    document.getElementById('set-cost-method').value = state.settings.cost_method;
+    renderCategories();
+  }
 }
 
 function renderCategories() {
@@ -161,8 +294,13 @@ function renderCategories() {
 
 // ==================== DASHBOARD ====================
 async function loadDashboard() {
-  const data = await api('api/dashboard.php');
+  const storeParam = getEffectiveStoreParam();
+  const data = await api(`api/dashboard.php?store_id=${encodeURIComponent(storeParam)}`);
   const k = data.kpis;
+
+  const activeStore = state.stores.find((s) => String(s.id) === String(storeParam));
+  document.getElementById('dash-store-label').textContent =
+    storeParam === 'all' ? 'Vista Global (Todas las tiendas)' : activeStore ? activeStore.name : `Tienda ${storeParam}`;
 
   document.getElementById('kpi-total-profit').textContent = fmtMoney(k.total_profit);
   document.getElementById('kpi-today-profit').textContent = fmtMoney(k.today_profit);
@@ -189,6 +327,30 @@ async function loadDashboard() {
 
   document.getElementById('btn-load-demo').style.display =
     k.total_products === 0 ? 'inline-flex' : 'none';
+
+  // Stores comparison card (shown in global view or when >1 store)
+  const storesCard = document.getElementById('dash-stores-card');
+  const storesBody = document.getElementById('dash-stores-body');
+  if (storeParam === 'all' && data.stores_summary) {
+    storesCard.style.display = 'block';
+    storesBody.innerHTML = data.stores_summary
+      .map(
+        (s) => `
+      <tr>
+        <td><strong>${esc(s.name)}</strong></td>
+        <td class="text-right num">${fmtMoney(s.stock_cost_value)}</td>
+        <td class="text-right num">${fmtMoney(s.purchases_total)}</td>
+        <td class="text-right text-orange num">${fmtMoney(s.sales_gross)}</td>
+        <td class="text-right text-green num">${fmtMoney(s.total_profit)}</td>
+        <td class="text-right">
+          <button class="btn btn-sm btn-outline" onclick="selectAdminStore(${s.id})">Entrar</button>
+        </td>
+      </tr>`
+      )
+      .join('');
+  } else {
+    storesCard.style.display = 'none';
+  }
 
   // Low stock table
   const lowBody = document.getElementById('dash-low-stock-body');
@@ -231,10 +393,17 @@ async function loadDashboard() {
   // Recent movements
   const recBody = document.getElementById('dash-recent-body');
   if (data.recent_movements.length === 0) {
-    recBody.innerHTML = '<tr><td colspan="7" class="empty-state">Sin movimientos todavía.</td></tr>';
+    recBody.innerHTML = '<tr><td colspan="8" class="empty-state">Sin movimientos todavía.</td></tr>';
   } else {
     recBody.innerHTML = data.recent_movements.map(renderMovementRowCompact).join('');
   }
+}
+
+function selectAdminStore(storeId) {
+  state.activeStoreId = String(storeId);
+  document.getElementById('admin-store-select').value = state.activeStoreId;
+  renderStoreSelectors();
+  loadDashboard();
 }
 
 function movementTypeBadge(type) {
@@ -261,6 +430,7 @@ function renderMovementRowCompact(m) {
   return `
     <tr>
       <td class="text-muted">${esc(m.created_at)}</td>
+      <td><span class="badge badge-gray">${esc(m.store_name || 'Tienda 1')}</span></td>
       <td>${movementTypeBadge(m.movement_type)}</td>
       <td><strong>${esc(m.product_name)}</strong></td>
       <td class="text-right num">${sign}${fmtQty(m.quantity, m.unit_label)}</td>
@@ -275,12 +445,15 @@ async function loadProducts() {
   const search = document.getElementById('prod-search')?.value || '';
   const catId = document.getElementById('prod-cat-filter')?.value || '';
   const params = new URLSearchParams();
+  params.set('store_id', getEffectiveStoreParam());
   if (search) params.set('search', search);
   if (catId) params.set('category_id', catId);
 
   const data = await api(`api/products.php?${params.toString()}`);
   state.products = data.products;
-  renderProductsTable();
+  if (state.user?.role === 'admin') {
+    renderProductsTable();
+  }
 }
 
 function renderProductsTable() {
@@ -428,6 +601,7 @@ document.getElementById('product-form').addEventListener('submit', async (e) => 
   const id = document.getElementById('p-id').value;
   const measureType = document.getElementById('p-measure-type').value;
   const payload = {
+    store_id: getConcreteStoreId(),
     name: document.getElementById('p-name').value.trim(),
     sku: document.getElementById('p-sku').value.trim(),
     category_id: document.getElementById('p-category').value || null,
@@ -473,7 +647,7 @@ async function deleteProduct(id) {
   }
 }
 
-// ==================== SALES (POS) ====================
+// ==================== SALES (ADMIN) ====================
 function renderSaleProductSelect() {
   const sel = document.getElementById('sale-product-select');
   sel.innerHTML =
@@ -642,6 +816,8 @@ document.getElementById('btn-confirm-sale').addEventListener('click', async () =
     return;
   }
   const payload = {
+    store_id: Number(document.getElementById('sale-store-select').value || getConcreteStoreId()),
+    payment_method: document.getElementById('sale-payment-method').value,
     customer_name: document.getElementById('sale-customer').value.trim(),
     notes: document.getElementById('sale-notes').value.trim(),
     items: state.cart.map((c) => ({
@@ -668,10 +844,10 @@ document.getElementById('btn-confirm-sale').addEventListener('click', async () =
 });
 
 async function loadSalesHistory() {
-  const data = await api('api/sales.php?limit=30');
+  const data = await api(`api/sales.php?limit=30&store_id=${encodeURIComponent(getEffectiveStoreParam())}`);
   const tbody = document.getElementById('sales-history-body');
   if (data.sales.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Aún no hay ventas registradas.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Aún no hay ventas registradas.</td></tr>';
     return;
   }
   tbody.innerHTML = data.sales
@@ -685,6 +861,10 @@ async function loadSalesHistory() {
         <td class="num">#${s.id}</td>
         <td class="text-muted">${esc(s.created_at)}</td>
         <td>
+          <div><span class="badge badge-gray">${esc(s.store_name || 'Tienda 1')}</span></div>
+          <div class="text-muted" style="font-size:11.5px;">${esc(s.seller_name || 'Admin')}</div>
+        </td>
+        <td>
           <strong>${esc(s.customer_name || 'Cliente general')}</strong>
           <div class="text-muted" style="font-size:11.5px;">${summary}</div>
         </td>
@@ -692,6 +872,253 @@ async function loadSalesHistory() {
         <td class="text-right text-muted num">${fmtMoney(taxes)}</td>
         <td class="text-right text-muted num">${fmtMoney(s.total_cost)}</td>
         <td class="text-right text-green num">${fmtMoney(s.total_profit)}</td>
+      </tr>`;
+    })
+    .join('');
+}
+
+// ==================== SELLER POS SHELL ====================
+function switchSellerView(view) {
+  document.querySelectorAll('.seller-nav-btn').forEach((b) => {
+    b.classList.toggle('active', b.dataset.sellerView === view);
+  });
+  document.querySelectorAll('.seller-view').forEach((v) => {
+    v.style.display = v.id === `seller-view-${view}` ? 'block' : 'none';
+  });
+
+  if (view === 'pos') {
+    loadProducts().then(() => {
+      renderSellerProductSelect();
+      renderSellerCart();
+      document.getElementById('seller-scan-input').focus();
+    });
+  }
+  if (view === 'stock') {
+    loadProducts().then(() => renderSellerStockTable());
+  }
+  if (view === 'mysales') {
+    loadSellerSalesHistory();
+  }
+}
+
+document.querySelectorAll('.seller-nav-btn').forEach((btn) => {
+  btn.addEventListener('click', () => switchSellerView(btn.dataset.sellerView));
+});
+
+function renderSellerProductSelect() {
+  const sel = document.getElementById('seller-product-select');
+  sel.innerHTML =
+    '<option value="">-- Selecciona un producto --</option>' +
+    state.products
+      .map(
+        (p) =>
+          `<option value="${p.id}">${esc(p.name)} — Stock: ${fmtQty(p.stock, p.unit_label)} · ${fmtMoney(p.sale_price_final)}</option>`
+      )
+      .join('');
+}
+
+function addProductToSellerCart(product, qty) {
+  if (!product) return;
+  if (qty <= 0) {
+    toast('La cantidad debe ser mayor a 0.', 'error');
+    return;
+  }
+  const existing = state.sellerCart.find((c) => c.product_id === product.id);
+  const totalRequested = (existing ? existing.quantity : 0) + qty;
+  if (totalRequested > product.stock) {
+    toast(`Stock insuficiente. Disponible: ${fmtQty(product.stock, product.unit_label)}`, 'error');
+    return;
+  }
+  if (existing) {
+    existing.quantity = Math.round((existing.quantity + qty) * 1000) / 1000;
+  } else {
+    state.sellerCart.push({
+      product_id: product.id,
+      name: product.name,
+      unit_label: product.unit_label,
+      stock: product.stock,
+      quantity: qty,
+      unit_price_final: product.sale_price_final,
+    });
+  }
+  renderSellerCart();
+}
+
+document.getElementById('btn-seller-add').addEventListener('click', () => {
+  const pid = Number(document.getElementById('seller-product-select').value);
+  const qty = parseFloat(document.getElementById('seller-qty-input').value) || 1;
+  const p = state.products.find((x) => Number(x.id) === pid);
+  if (!p) {
+    toast('Selecciona un producto.', 'error');
+    return;
+  }
+  addProductToSellerCart(p, qty);
+});
+
+document.getElementById('seller-scan-input').addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const q = e.target.value.trim().toLowerCase();
+  if (!q) return;
+  const qty = parseFloat(document.getElementById('seller-qty-input').value) || 1;
+  const match =
+    state.products.find((p) => (p.sku || '').toLowerCase() === q) ||
+    state.products.find((p) => p.name.toLowerCase().includes(q));
+  if (!match) {
+    toast(`No se encontró producto con "${e.target.value}"`, 'error');
+    return;
+  }
+  addProductToSellerCart(match, qty);
+  e.target.value = '';
+  document.getElementById('seller-qty-input').value = '1';
+});
+
+function renderSellerCart() {
+  const tbody = document.getElementById('seller-cart-body');
+  if (state.sellerCart.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Escanea o agrega productos para cobrar.</td></tr>';
+  } else {
+    tbody.innerHTML = state.sellerCart
+      .map(
+        (item, idx) => `
+      <tr>
+        <td>
+          <strong>${esc(item.name)}</strong>
+          <div class="text-muted" style="font-size:11px;">Disponible: ${fmtQty(item.stock, item.unit_label)}</div>
+        </td>
+        <td class="text-right">
+          <input type="number" class="form-control num" style="width:85px; display:inline-block; text-align:right;"
+            step="any" min="0.001" max="${item.stock}" value="${item.quantity}"
+            onchange="updateSellerCartQty(${idx}, this.value)">
+          <span class="text-muted" style="font-size:11.5px;">${esc(item.unit_label)}</span>
+        </td>
+        <td class="text-right num">${fmtMoney(item.unit_price_final)}</td>
+        <td class="text-right text-orange num">${fmtMoney(item.quantity * item.unit_price_final)}</td>
+        <td class="text-right">
+          <button class="btn btn-sm btn-danger-outline" onclick="removeSellerCartItem(${idx})">×</button>
+        </td>
+      </tr>`
+      )
+      .join('');
+  }
+
+  const total = state.sellerCart.reduce((acc, i) => acc + i.quantity * i.unit_price_final, 0);
+  document.getElementById('seller-total-gross').textContent = fmtMoney(total);
+  updateSellerChange();
+}
+
+function updateSellerCartQty(idx, val) {
+  const qty = parseFloat(val) || 0;
+  if (qty <= 0) {
+    removeSellerCartItem(idx);
+    return;
+  }
+  if (qty > state.sellerCart[idx].stock) {
+    toast(`Stock máximo disponible: ${fmtQty(state.sellerCart[idx].stock, state.sellerCart[idx].unit_label)}`, 'error');
+    renderSellerCart();
+    return;
+  }
+  state.sellerCart[idx].quantity = qty;
+  renderSellerCart();
+}
+
+function removeSellerCartItem(idx) {
+  state.sellerCart.splice(idx, 1);
+  renderSellerCart();
+}
+
+function updateSellerChange() {
+  const payMethod = document.getElementById('seller-payment-method').value;
+  const cashBox = document.getElementById('seller-cash-box');
+  cashBox.style.display = payMethod === 'cash' ? 'block' : 'none';
+
+  const total = state.sellerCart.reduce((acc, i) => acc + i.quantity * i.unit_price_final, 0);
+  const received = parseFloat(document.getElementById('seller-cash-received').value) || 0;
+  const change = received >= total && total > 0 ? received - total : 0;
+  document.getElementById('seller-cash-change').textContent = fmtMoney(change);
+}
+
+document.getElementById('seller-payment-method').addEventListener('change', updateSellerChange);
+document.getElementById('seller-cash-received').addEventListener('input', updateSellerChange);
+
+document.getElementById('btn-seller-confirm').addEventListener('click', async () => {
+  if (state.sellerCart.length === 0) {
+    toast('Agrega al menos un producto.', 'error');
+    return;
+  }
+  const payMethod = document.getElementById('seller-payment-method').value;
+  const cashRecVal = document.getElementById('seller-cash-received').value;
+  const payload = {
+    payment_method: payMethod,
+    cash_received: payMethod === 'cash' && cashRecVal !== '' ? parseFloat(cashRecVal) : null,
+    notes: document.getElementById('seller-notes').value.trim(),
+    items: state.sellerCart.map((c) => ({ product_id: c.product_id, quantity: c.quantity })),
+  };
+
+  try {
+    const res = await api('api/sales.php', { method: 'POST', body: JSON.stringify(payload) });
+    const changeMsg = res.sale.cash_change !== null ? ` · Vuelto: ${fmtMoney(res.sale.cash_change)}` : '';
+    toast(`Venta #${res.sale.id} cobrada (${fmtMoney(res.sale.total_gross)})${changeMsg}`);
+    state.sellerCart = [];
+    document.getElementById('seller-cash-received').value = '';
+    document.getElementById('seller-notes').value = '';
+    await loadProducts();
+    renderSellerProductSelect();
+    renderSellerCart();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+});
+
+function renderSellerStockTable() {
+  const q = (document.getElementById('seller-stock-search').value || '').trim().toLowerCase();
+  const filtered = q
+    ? state.products.filter(
+        (p) => p.name.toLowerCase().includes(q) || (p.sku || '').toLowerCase().includes(q)
+      )
+    : state.products;
+
+  const tbody = document.getElementById('seller-stock-body');
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No hay productos que coincidan.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = filtered
+    .map(
+      (p) => `
+    <tr>
+      <td><strong>${esc(p.name)}</strong>${p.sku ? `<div class="text-muted" style="font-size:11.5px;">SKU: ${esc(p.sku)}</div>` : ''}</td>
+      <td>${esc(p.category_name || '—')}</td>
+      <td class="text-right num ${p.is_low_stock ? 'text-danger' : ''}"><strong>${fmtQty(p.stock, p.unit_label)}</strong></td>
+      <td class="text-right text-orange num">${fmtMoney(p.sale_price_final)}</td>
+    </tr>`
+    )
+    .join('');
+}
+
+document.getElementById('seller-stock-search').addEventListener('input', renderSellerStockTable);
+
+async function loadSellerSalesHistory() {
+  const data = await api('api/sales.php?limit=40');
+  const tbody = document.getElementById('seller-sales-body');
+  if (data.sales.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state">Aún no registras ventas.</td></tr>';
+    return;
+  }
+  const payLabels = { cash: 'Efectivo', card: 'Tarjeta', transfer: 'Transferencia', mixed: 'Mixto' };
+  tbody.innerHTML = data.sales
+    .map((s) => {
+      const summary = (s.items || [])
+        .map((i) => `${fmtQty(i.quantity, i.unit_label)} ${esc(i.product_name)}`)
+        .join(', ');
+      return `
+      <tr>
+        <td class="num">#${s.id}</td>
+        <td class="text-muted">${esc(s.created_at)}</td>
+        <td>${summary}</td>
+        <td><span class="badge badge-gray">${payLabels[s.payment_method] || s.payment_method}</span></td>
+        <td class="text-right text-orange num">${fmtMoney(s.total_gross)}</td>
+        <td class="text-right text-green num">${s.cash_change !== null ? fmtMoney(s.cash_change) : '—'}</td>
       </tr>`;
     })
     .join('');
@@ -764,6 +1191,7 @@ document.getElementById('pur-cost').addEventListener('input', updatePurchasePrev
 document.getElementById('purchase-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const payload = {
+    store_id: Number(document.getElementById('pur-store').value || getConcreteStoreId()),
     product_id: Number(document.getElementById('pur-product').value),
     quantity: parseFloat(document.getElementById('pur-qty').value) || 0,
     unit_cost: parseFloat(document.getElementById('pur-cost').value) || 0,
@@ -788,10 +1216,10 @@ document.getElementById('purchase-form').addEventListener('submit', async (e) =>
 });
 
 async function loadPurchasesHistory() {
-  const data = await api('api/purchases.php?limit=30');
+  const data = await api(`api/purchases.php?limit=30&store_id=${encodeURIComponent(getEffectiveStoreParam())}`);
   const tbody = document.getElementById('purchases-history-body');
   if (data.purchases.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Aún no hay compras registradas.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Aún no hay compras registradas.</td></tr>';
     return;
   }
   tbody.innerHTML = data.purchases
@@ -799,6 +1227,7 @@ async function loadPurchasesHistory() {
       (m) => `
       <tr>
         <td class="text-muted">${esc(m.created_at)}</td>
+        <td><span class="badge badge-gray">${esc(m.store_name || 'Tienda 1')}</span></td>
         <td><strong>${esc(m.product_name)}</strong></td>
         <td class="text-right num">+${fmtQty(m.quantity, m.unit_label)}</td>
         <td class="text-right num">${fmtMoney(m.unit_cost)}</td>
@@ -827,6 +1256,7 @@ function renderMovementProductFilter() {
 
 function getMovementQueryParams() {
   const params = new URLSearchParams();
+  params.set('store_id', getEffectiveStoreParam());
   const pid = document.getElementById('mov-filter-product').value;
   const type = document.getElementById('mov-filter-type').value;
   const from = document.getElementById('mov-filter-from').value;
@@ -843,7 +1273,7 @@ async function loadMovements() {
   const data = await api(`api/movements.php?${params.toString()}`);
   const tbody = document.getElementById('movements-table-body');
   if (data.movements.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No hay movimientos para los filtros seleccionados.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" class="empty-state">No hay movimientos para los filtros seleccionados.</td></tr>';
     return;
   }
   tbody.innerHTML = data.movements
@@ -862,6 +1292,7 @@ async function loadMovements() {
       return `
       <tr>
         <td class="text-muted">${esc(m.created_at)}</td>
+        <td><span class="badge badge-gray">${esc(m.store_name || 'Tienda 1')}</span></td>
         <td>${movementTypeBadge(m.movement_type)}</td>
         <td><strong>${esc(m.product_name)}</strong></td>
         <td class="text-right num">${sign}${fmtQty(m.quantity, m.unit_label)}</td>
@@ -890,6 +1321,7 @@ document.getElementById('btn-open-adjustment').addEventListener('click', () => {
 document.getElementById('adjustment-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const payload = {
+    store_id: Number(document.getElementById('adj-store').value || getConcreteStoreId()),
     product_id: Number(document.getElementById('adj-product').value),
     movement_type: document.getElementById('adj-type').value,
     quantity: parseFloat(document.getElementById('adj-qty').value) || 0,
@@ -902,6 +1334,131 @@ document.getElementById('adjustment-form').addEventListener('submit', async (e) 
     await loadProducts();
     loadMovements();
     loadDashboard();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+});
+
+// ==================== STORES & USERS ====================
+async function loadStoresAndUsers() {
+  const [stData, uData] = await Promise.all([
+    api('api/stores.php'),
+    api(`api/users.php?store_id=${encodeURIComponent(getEffectiveStoreParam())}`),
+  ]);
+  state.stores = stData.stores;
+  renderStoreSelectors();
+
+  const storesBody = document.getElementById('stores-table-body');
+  storesBody.innerHTML = stData.stores
+    .map(
+      (s) => `
+    <tr>
+      <td><strong>${esc(s.name)}</strong></td>
+      <td class="text-muted">${esc(s.address || '—')} ${s.phone ? `· ${esc(s.phone)}` : ''}</td>
+      <td class="text-right num">${s.sellers_count}</td>
+      <td class="text-right num">${fmtMoney(s.stock_cost_value)}</td>
+      <td class="text-right text-orange num">${fmtMoney(s.total_sales_gross)}</td>
+      <td class="text-right text-green num">${fmtMoney(s.total_profit)}</td>
+    </tr>`
+    )
+    .join('');
+
+  const usersBody = document.getElementById('users-table-body');
+  usersBody.innerHTML = uData.users
+    .map(
+      (u) => `
+    <tr>
+      <td>
+        <strong>${esc(u.full_name)}</strong>
+        <div class="text-muted" style="font-size:11.5px;">@${esc(u.username)} ${!u.is_active ? '· <span class="text-danger">Inactivo</span>' : ''}</div>
+      </td>
+      <td>${u.role === 'admin' ? '<span class="badge badge-blue">Dueño / Admin</span>' : '<span class="badge badge-gray">Vendedor</span>'}</td>
+      <td>${esc(u.store_name || (u.role === 'admin' ? 'Todas las tiendas' : '—'))}</td>
+      <td><code>${esc(u.card_code || '—')}</code></td>
+      <td class="text-right num">${u.today_sales_count}</td>
+      <td class="text-right text-orange num">${fmtMoney(u.today_sales_gross)}</td>
+      <td class="text-right text-green num">${fmtMoney(u.today_sales_profit)}</td>
+      <td class="text-right">
+        <button class="btn btn-sm btn-outline" onclick='openEditUser(${JSON.stringify(u)})'>Editar</button>
+      </td>
+    </tr>`
+    )
+    .join('');
+}
+
+document.getElementById('btn-new-store').addEventListener('click', () => {
+  document.getElementById('store-form').reset();
+  openModal('modal-store');
+});
+
+document.getElementById('store-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    const res = await api('api/stores.php', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: document.getElementById('st-name').value.trim(),
+        address: document.getElementById('st-address').value.trim(),
+        phone: document.getElementById('st-phone').value.trim(),
+      }),
+    });
+    state.stores = res.stores;
+    renderStoreSelectors();
+    closeModal('modal-store');
+    toast('Tienda creada correctamente.');
+    loadStoresAndUsers();
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+});
+
+document.getElementById('btn-new-user').addEventListener('click', () => {
+  document.getElementById('modal-user-title').textContent = 'Nuevo Vendedor / Usuario';
+  document.getElementById('user-form').reset();
+  document.getElementById('u-id').value = '';
+  document.getElementById('u-username').disabled = false;
+  document.getElementById('u-pass-hint').textContent = '(obligatoria)';
+  document.getElementById('u-password').required = true;
+  openModal('modal-user');
+});
+
+function openEditUser(u) {
+  document.getElementById('modal-user-title').textContent = `Editar: ${u.full_name}`;
+  document.getElementById('u-id').value = u.id;
+  document.getElementById('u-full-name').value = u.full_name;
+  document.getElementById('u-username').value = u.username;
+  document.getElementById('u-username').disabled = true;
+  document.getElementById('u-role').value = u.role;
+  document.getElementById('u-store').value = u.store_id || state.stores[0]?.id || 1;
+  document.getElementById('u-card-code').value = u.card_code || '';
+  document.getElementById('u-password').value = '';
+  document.getElementById('u-password').required = false;
+  document.getElementById('u-pass-hint').textContent = '(dejar vacío para mantener)';
+  openModal('modal-user');
+}
+
+document.getElementById('user-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('u-id').value;
+  const payload = {
+    full_name: document.getElementById('u-full-name').value.trim(),
+    username: document.getElementById('u-username').value.trim(),
+    role: document.getElementById('u-role').value,
+    store_id: Number(document.getElementById('u-store').value),
+    card_code: document.getElementById('u-card-code').value.trim(),
+    password: document.getElementById('u-password').value,
+  };
+  try {
+    if (id) {
+      payload.id = Number(id);
+      await api('api/users.php', { method: 'PUT', body: JSON.stringify(payload) });
+      toast('Usuario actualizado.');
+    } else {
+      await api('api/users.php', { method: 'POST', body: JSON.stringify(payload) });
+      toast('Usuario creado correctamente.');
+    }
+    closeModal('modal-user');
+    loadStoresAndUsers();
   } catch (err) {
     toast(err.message, 'error');
   }
@@ -950,9 +1507,11 @@ document.getElementById('category-form').addEventListener('submit', async (e) =>
 document.getElementById('btn-load-demo').addEventListener('click', async () => {
   try {
     const papeleria = state.categories.find((c) => c.name.includes('Papelería'));
+    const storeId = getConcreteStoreId();
     const res = await api('api/products.php', {
       method: 'POST',
       body: JSON.stringify({
+        store_id: storeId,
         sku: 'LAP-MINA-01',
         name: 'Lápiz Mina HB',
         category_id: papeleria ? papeleria.id : null,
@@ -968,10 +1527,10 @@ document.getElementById('btn-load-demo').addEventListener('click', async () => {
       }),
     });
 
-    // Registrar la venta de 20 lápices del ejemplo
     await api('api/sales.php', {
       method: 'POST',
       body: JSON.stringify({
+        store_id: storeId,
         customer_name: 'Ejemplo Pyme',
         notes: 'Venta de ejemplo: 20 lápices mina',
         items: [{ product_id: res.product.id, quantity: 20 }],

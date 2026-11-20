@@ -5,14 +5,37 @@ require_once __DIR__ . '/db.php';
 
 try {
     $pdo = getPDO();
+    $user = requireAuth();
     $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+    $isSeller = $user['role'] === 'seller';
 
     if ($method === 'GET') {
         $limit = min(200, max(10, (int)($_GET['limit'] ?? 50)));
-        $stmt = $pdo->prepare(
-            'SELECT * FROM sales ORDER BY created_at DESC, id DESC LIMIT ?'
-        );
-        $stmt->bindValue(1, $limit, PDO::PARAM_INT);
+        $storeId = resolveStoreId($_GET['store_id'] ?? null, $user, true);
+
+        $sql = 'SELECT sa.*, st.name AS store_name, u.full_name AS seller_name
+                FROM sales sa
+                LEFT JOIN stores st ON st.id = sa.store_id
+                LEFT JOIN users u ON u.id = sa.user_id
+                WHERE 1=1';
+        $params = [];
+
+        if ($storeId !== null) {
+            $sql .= ' AND sa.store_id = ?';
+            $params[] = $storeId;
+        }
+        if ($isSeller) {
+            $sql .= ' AND sa.user_id = ?';
+            $params[] = (int)$user['id'];
+        }
+        $sql .= ' ORDER BY sa.created_at DESC, sa.id DESC LIMIT ?';
+
+        $stmt = $pdo->prepare($sql);
+        $idx = 1;
+        foreach ($params as $p) {
+            $stmt->bindValue($idx++, $p, PDO::PARAM_INT);
+        }
+        $stmt->bindValue($idx, $limit, PDO::PARAM_INT);
         $stmt->execute();
         $sales = $stmt->fetchAll();
 
@@ -25,9 +48,15 @@ try {
             $itemStmt->execute($saleIds);
             $itemsBySale = [];
             foreach ($itemStmt->fetchAll() as $item) {
+                if ($isSeller) {
+                    unset($item['unit_cost'], $item['line_cost'], $item['line_profit']);
+                }
                 $itemsBySale[(int)$item['sale_id']][] = $item;
             }
             foreach ($sales as &$sale) {
+                if ($isSeller) {
+                    unset($sale['total_cost'], $sale['total_profit']);
+                }
                 $sale['items'] = $itemsBySale[(int)$sale['id']] ?? [];
             }
             unset($sale);
@@ -43,9 +72,18 @@ try {
             jsonError('Debe agregar al menos un producto a la venta.', 422);
         }
 
+        $storeId = resolveStoreId(isset($body['store_id']) ? (string)$body['store_id'] : null, $user, false) ?? 1;
         $customerName = trim((string)($body['customer_name'] ?? ''));
         $reference = trim((string)($body['reference'] ?? ''));
         $notes = trim((string)($body['notes'] ?? ''));
+
+        $allowedPay = ['cash', 'card', 'transfer', 'mixed'];
+        $paymentMethod = in_array($body['payment_method'] ?? 'cash', $allowedPay, true)
+            ? (string)$body['payment_method']
+            : 'cash';
+        $cashReceived = isset($body['cash_received']) && $body['cash_received'] !== ''
+            ? max(0.0, (float)$body['cash_received'])
+            : null;
 
         $pdo->beginTransaction();
 
@@ -58,6 +96,8 @@ try {
 
         $preparedLines = [];
         $prodSelect = $pdo->prepare('SELECT * FROM products WHERE id = ? AND is_active = 1 FOR UPDATE');
+        $ssInit = $pdo->prepare('INSERT IGNORE INTO store_stock (store_id, product_id, stock, min_stock) VALUES (?, ?, 0, ?)');
+        $ssLock = $pdo->prepare('SELECT stock FROM store_stock WHERE store_id = ? AND product_id = ? FOR UPDATE');
 
         foreach ($items as $rawItem) {
             $productId = (int)($rawItem['product_id'] ?? 0);
@@ -75,12 +115,15 @@ try {
                 jsonError("Producto ID $productId no encontrado.", 404);
             }
 
-            $stockBefore = (float)$product['stock'];
+            $ssInit->execute([$storeId, $productId, (float)$product['min_stock']]);
+            $ssLock->execute([$storeId, $productId]);
+            $stockBefore = (float)$ssLock->fetchColumn();
+
             if ($stockBefore < $quantity) {
                 $pdo->rollBack();
                 jsonError(
                     sprintf(
-                        'Stock insuficiente para "%s". Disponible: %s %s, solicitado: %s %s.',
+                        'Stock insuficiente en esta tienda para "%s". Disponible: %s %s, solicitado: %s %s.',
                         $product['name'],
                         rtrim(rtrim(number_format($stockBefore, 3, '.', ''), '0'), '.'),
                         $product['unit_label'],
@@ -96,7 +139,8 @@ try {
             $otherTaxRate = (float)$product['other_tax_rate'];
             $taxMultiplier = 1.0 + (($ivaRate + $otherTaxRate) / 100.0);
 
-            $unitPriceFinal = isset($rawItem['unit_price_final']) && $rawItem['unit_price_final'] !== ''
+            // Sellers cannot override unit price arbitrarily unless admin
+            $unitPriceFinal = (!$isSeller && isset($rawItem['unit_price_final']) && $rawItem['unit_price_final'] !== '')
                 ? max(0.0, (float)$rawItem['unit_price_final'])
                 : (float)$product['sale_price_final'];
 
@@ -143,14 +187,29 @@ try {
             ];
         }
 
+        $cashChange = null;
+        if ($paymentMethod === 'cash' && $cashReceived !== null) {
+            if ($cashReceived < $totalGross) {
+                $pdo->rollBack();
+                jsonError('El efectivo recibido es menor al total a pagar.', 422);
+            }
+            $cashChange = round($cashReceived - $totalGross, 2);
+        }
+
         $saleStmt = $pdo->prepare(
             'INSERT INTO sales
-             (reference, customer_name, total_gross, total_iva, total_other_tax, total_net, total_cost, total_profit, notes)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+             (store_id, user_id, reference, customer_name, payment_method, cash_received, cash_change,
+              total_gross, total_iva, total_other_tax, total_net, total_cost, total_profit, notes)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
         $saleStmt->execute([
+            $storeId,
+            (int)$user['id'],
             $reference !== '' ? $reference : null,
             $customerName !== '' ? $customerName : null,
+            $paymentMethod,
+            $cashReceived,
+            $cashChange,
             $totalGross,
             $totalIva,
             $totalOtherTax,
@@ -168,13 +227,13 @@ try {
               line_net, line_cost, line_profit)
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
-        $stockUpdate = $pdo->prepare('UPDATE products SET stock = ? WHERE id = ?');
+        $ssUpdate = $pdo->prepare('UPDATE store_stock SET stock = ? WHERE store_id = ? AND product_id = ?');
         $movInsert = $pdo->prepare(
             'INSERT INTO inventory_movements
-             (product_id, movement_type, quantity, stock_before, stock_after,
+             (store_id, user_id, product_id, movement_type, quantity, stock_before, stock_after,
               unit_cost, unit_price_final, money_movement, iva_amount, other_tax_amount,
               net_amount, profit_amount, counterparty, reference_id, notes)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         );
 
         foreach ($preparedLines as $line) {
@@ -198,9 +257,12 @@ try {
                 $line['line_profit'],
             ]);
 
-            $stockUpdate->execute([$line['stock_after'], $p['id']]);
+            $ssUpdate->execute([$line['stock_after'], $storeId, $p['id']]);
+            syncProductTotalStock($pdo, (int)$p['id']);
 
             $movInsert->execute([
+                $storeId,
+                (int)$user['id'],
                 $p['id'],
                 'sale',
                 $line['quantity'],
@@ -221,18 +283,23 @@ try {
 
         $pdo->commit();
 
-        jsonResponse([
-            'ok' => true,
-            'sale' => [
-                'id' => $saleId,
-                'total_gross' => $totalGross,
-                'total_iva' => $totalIva,
-                'total_other_tax' => $totalOtherTax,
-                'total_net' => $totalNet,
-                'total_cost' => $totalCost,
-                'total_profit' => $totalProfit,
-            ],
-        ], 201);
+        $saleResp = [
+            'id' => $saleId,
+            'store_id' => $storeId,
+            'payment_method' => $paymentMethod,
+            'cash_received' => $cashReceived,
+            'cash_change' => $cashChange,
+            'total_gross' => $totalGross,
+            'total_iva' => $totalIva,
+            'total_other_tax' => $totalOtherTax,
+            'total_net' => $totalNet,
+        ];
+        if (!$isSeller) {
+            $saleResp['total_cost'] = $totalCost;
+            $saleResp['total_profit'] = $totalProfit;
+        }
+
+        jsonResponse(['ok' => true, 'sale' => $saleResp], 201);
     }
 
     jsonError('Método no permitido.', 405);

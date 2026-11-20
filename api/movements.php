@@ -5,9 +5,11 @@ require_once __DIR__ . '/db.php';
 
 try {
     $pdo = getPDO();
+    $user = requireAuth('admin');
     $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 
     if ($method === 'GET') {
+        $storeId = resolveStoreId($_GET['store_id'] ?? null, $user, true);
         $productId = isset($_GET['product_id']) && $_GET['product_id'] !== '' ? (int)$_GET['product_id'] : null;
         $type = trim((string)($_GET['type'] ?? ''));
         $from = trim((string)($_GET['from'] ?? ''));
@@ -15,12 +17,19 @@ try {
         $export = ($_GET['export'] ?? '') === 'csv';
         $limit = $export ? 5000 : min(300, max(10, (int)($_GET['limit'] ?? 100)));
 
-        $sql = 'SELECT m.*, p.name AS product_name, p.sku, p.unit_label
+        $sql = 'SELECT m.*, p.name AS product_name, p.sku, p.unit_label,
+                       st.name AS store_name, u.full_name AS user_name
                 FROM inventory_movements m
                 JOIN products p ON p.id = m.product_id
+                LEFT JOIN stores st ON st.id = m.store_id
+                LEFT JOIN users u ON u.id = m.user_id
                 WHERE 1=1';
         $params = [];
 
+        if ($storeId !== null) {
+            $sql .= ' AND m.store_id = ?';
+            $params[] = $storeId;
+        }
         if ($productId !== null) {
             $sql .= ' AND m.product_id = ?';
             $params[] = $productId;
@@ -48,10 +57,9 @@ try {
             header('Content-Type: text/csv; charset=utf-8');
             header('Content-Disposition: attachment; filename="kardex_movimientos.csv"');
             $out = fopen('php://output', 'w');
-            // UTF-8 BOM for Excel
             fwrite($out, "\xEF\xBB\xBF");
             fputcsv($out, [
-                'ID', 'Fecha', 'Tipo', 'Producto', 'SKU', 'Unidad', 'Cantidad',
+                'ID', 'Fecha', 'Tienda', 'Usuario', 'Tipo', 'Producto', 'SKU', 'Unidad', 'Cantidad',
                 'Stock Anterior', 'Stock Nuevo', 'Costo Unit.', 'Precio Final Unit.',
                 'Movimiento Dinero', 'IVA', 'Otro Impuesto', 'Neto', 'Ganancia',
                 'Contraparte', 'Notas'
@@ -66,6 +74,8 @@ try {
                 fputcsv($out, [
                     $r['id'],
                     $r['created_at'],
+                    $r['store_name'] ?? 'Tienda 1',
+                    $r['user_name'] ?? '',
                     $typeLabels[$r['movement_type']] ?? $r['movement_type'],
                     $r['product_name'],
                     $r['sku'] ?? '',
@@ -93,6 +103,7 @@ try {
 
     if ($method === 'POST') {
         $body = getJsonBody();
+        $storeId = resolveStoreId(isset($body['store_id']) ? (string)$body['store_id'] : null, $user, false) ?? 1;
         $productId = (int)($body['product_id'] ?? 0);
         $type = (string)($body['movement_type'] ?? '');
         $quantity = (float)($body['quantity'] ?? 0);
@@ -117,30 +128,38 @@ try {
             jsonError('Producto no encontrado.', 404);
         }
 
-        $stockBefore = (float)$product['stock'];
+        $pdo->prepare('INSERT IGNORE INTO store_stock (store_id, product_id, stock, min_stock) VALUES (?, ?, 0, ?)')
+            ->execute([$storeId, $productId, (float)$product['min_stock']]);
+        $ssLock = $pdo->prepare('SELECT stock FROM store_stock WHERE store_id = ? AND product_id = ? FOR UPDATE');
+        $ssLock->execute([$storeId, $productId]);
+        $stockBefore = (float)$ssLock->fetchColumn();
+
         if ($type === 'adjustment_out' && $stockBefore < $quantity) {
             $pdo->rollBack();
-            jsonError('No hay suficiente stock para descontar esa cantidad.', 422);
+            jsonError('No hay suficiente stock en esta tienda para descontar esa cantidad.', 422);
         }
 
         $stockAfter = $type === 'adjustment_in'
             ? round($stockBefore + $quantity, 3)
             : round($stockBefore - $quantity, 3);
 
-        $upd = $pdo->prepare('UPDATE products SET stock = ? WHERE id = ?');
-        $upd->execute([$stockAfter, $productId]);
+        $pdo->prepare('UPDATE store_stock SET stock = ? WHERE store_id = ? AND product_id = ?')
+            ->execute([$stockAfter, $storeId, $productId]);
+        syncProductTotalStock($pdo, $productId);
 
         $unitCost = (float)$product['cost_price'];
         $costImpact = round($quantity * $unitCost, 2);
 
         $ins = $pdo->prepare(
             'INSERT INTO inventory_movements
-             (product_id, movement_type, quantity, stock_before, stock_after,
+             (store_id, user_id, product_id, movement_type, quantity, stock_before, stock_after,
               unit_cost, unit_price_final, money_movement, iva_amount, other_tax_amount,
               net_amount, profit_amount, counterparty, notes)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, ?, ?, ?)'
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, ?, ?, ?)'
         );
         $ins->execute([
+            $storeId,
+            (int)$user['id'],
             $productId,
             $type,
             $quantity,
@@ -156,6 +175,7 @@ try {
         $pdo->commit();
         jsonResponse([
             'ok' => true,
+            'store_id' => $storeId,
             'stock_before' => $stockBefore,
             'stock_after' => $stockAfter,
         ], 201);
