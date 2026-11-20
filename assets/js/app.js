@@ -511,7 +511,7 @@ document.getElementById('prod-search').addEventListener('input', () => loadProdu
 document.getElementById('prod-cat-filter').addEventListener('change', () => loadProducts());
 
 // Product Modal & Live Pricing Calculator
-let lastEditedPriceField = 'net';
+let lastEditedPriceField = 'margin';
 
 function updateProductCalculator() {
   const cost = Math.max(0, parseFloat(document.getElementById('p-cost').value) || 0);
@@ -520,28 +520,43 @@ function updateProductCalculator() {
   const stock = Math.max(0, parseFloat(document.getElementById('p-stock').value) || 0);
   const mult = 1 + (iva + otherTax) / 100;
 
+  let marginPct = parseFloat(document.getElementById('p-margin-pct').value) || 0;
   let net = parseFloat(document.getElementById('p-sale-net').value) || 0;
   let final = parseFloat(document.getElementById('p-sale-final').value) || 0;
 
-  if (lastEditedPriceField === 'net') {
+  if (lastEditedPriceField === 'margin') {
+    net = Math.round(cost * (1 + marginPct / 100) * 100) / 100;
     final = Math.round(net * mult * 100) / 100;
+    document.getElementById('p-sale-net').value = net;
     document.getElementById('p-sale-final').value = final;
+  } else if (lastEditedPriceField === 'net') {
+    final = Math.round(net * mult * 100) / 100;
+    marginPct = cost > 0 ? Math.round(((net - cost) / cost) * 10000) / 100 : 0;
+    document.getElementById('p-sale-final').value = final;
+    document.getElementById('p-margin-pct').value = marginPct;
   } else {
     net = mult > 0 ? Math.round((final / mult) * 100) / 100 : final;
+    marginPct = cost > 0 ? Math.round(((net - cost) / cost) * 10000) / 100 : 0;
     document.getElementById('p-sale-net').value = net;
+    document.getElementById('p-margin-pct').value = marginPct;
   }
 
   const taxAmount = Math.max(0, final - net);
   const profit = net - cost;
-  const margin = cost > 0 ? ((profit / cost) * 100).toFixed(1) : '0.0';
+  const displayMargin = cost > 0 ? ((profit / cost) * 100).toFixed(1) : '0.0';
 
+  document.getElementById('p-calc-net').textContent = fmtMoney(net);
   document.getElementById('p-calc-taxes').textContent = fmtMoney(taxAmount);
   document.getElementById('p-calc-final').textContent = fmtMoney(final);
   document.getElementById('p-calc-profit').textContent = fmtMoney(profit);
-  document.getElementById('p-calc-margin').textContent = `${margin}%`;
+  document.getElementById('p-calc-margin').textContent = `${displayMargin}%`;
   document.getElementById('p-calc-stock-val').textContent = fmtMoney(stock * cost);
 }
 
+document.getElementById('p-margin-pct').addEventListener('input', () => {
+  lastEditedPriceField = 'margin';
+  updateProductCalculator();
+});
 document.getElementById('p-sale-net').addEventListener('input', () => {
   lastEditedPriceField = 'net';
   updateProductCalculator();
@@ -567,8 +582,9 @@ document.getElementById('btn-new-product').addEventListener('click', () => {
   document.getElementById('p-calc-stock-val-row').style.display = 'flex';
   document.getElementById('p-iva').value = state.settings.default_iva_rate;
   document.getElementById('p-other-tax').value = state.settings.default_other_tax_rate;
+  document.getElementById('p-margin-pct').value = '0';
   document.getElementById('p-unit-label').value = 'unid.';
-  lastEditedPriceField = 'net';
+  lastEditedPriceField = 'margin';
   updateProductCalculator();
   openModal('modal-product');
 });
@@ -591,6 +607,8 @@ function openEditProduct(id) {
   document.getElementById('p-other-tax').value = p.other_tax_rate;
   document.getElementById('p-sale-net').value = p.sale_price_net;
   document.getElementById('p-sale-final').value = p.sale_price_final;
+  document.getElementById('p-margin-pct').value =
+    p.cost_price > 0 ? Math.round(((p.sale_price_net - p.cost_price) / p.cost_price) * 10000) / 100 : 0;
   lastEditedPriceField = 'net';
   updateProductCalculator();
   openModal('modal-product');

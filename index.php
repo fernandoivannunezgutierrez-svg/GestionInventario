@@ -899,6 +899,10 @@
             <input type="number" id="p-cost" class="form-control" step="0.01" min="0" value="0" required>
           </div>
           <div class="form-group">
+            <label for="p-margin-pct">Ganancia Deseada (%)</label>
+            <input type="number" id="p-margin-pct" class="form-control" step="0.01" min="0" value="0" placeholder="Ej: 2, 20, 35">
+          </div>
+          <div class="form-group">
             <label for="p-iva">IVA (%)</label>
             <input type="number" id="p-iva" class="form-control" step="0.01" min="0" max="100" value="19" required>
           </div>
@@ -911,22 +915,26 @@
             <input type="number" id="p-sale-net" class="form-control" step="0.01" min="0" value="0">
           </div>
           <div class="form-group">
-            <label for="p-sale-final">Precio Final al Público (c/imp.)</label>
+            <label for="p-sale-final">Precio Final al Cliente (c/imp.)</label>
             <input type="number" id="p-sale-final" class="form-control" step="0.01" min="0" value="0">
           </div>
         </div>
 
         <div class="calc-box" style="margin-bottom:18px;">
           <div class="calc-row">
-            <span>Impuestos por unidad (IVA + Otro)</span>
-            <span class="num" id="p-calc-taxes">$0</span>
+            <span>Precio Venta Neto (Costo + Ganancia)</span>
+            <strong class="num" id="p-calc-net">$0</strong>
           </div>
           <div class="calc-row">
-            <span>Precio Final al Público (al lado)</span>
-            <strong class="num text-orange" id="p-calc-final">$0</strong>
+            <span>(+) Impuestos por unidad (IVA + Otro)</span>
+            <span class="num" id="p-calc-taxes">$0</span>
+          </div>
+          <div class="calc-row highlight-orange">
+            <span>(=) Precio Final al Cliente</span>
+            <span class="num" id="p-calc-final">$0</span>
           </div>
           <div class="calc-row highlight-green">
-            <span>Ganancia Neta por Unidad (<span id="p-calc-margin">0%</span> margen)</span>
+            <span>Ganancia Neta por Unidad (<span id="p-calc-margin">0%</span>)</span>
             <span class="num" id="p-calc-profit">$0</span>
           </div>
           <div class="calc-row" id="p-calc-stock-val-row">
