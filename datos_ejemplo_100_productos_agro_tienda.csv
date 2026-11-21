@@ -1,0 +1,101 @@
+﻿SKU;Nombre;Categoria;Tipo_Medida;Unidad;Stock_Inicial;Stock_Minimo;Costo_Compra_Unit;Margen_Ganancia_Pct;Precio_Venta_Neto;IVA_Pct;Otro_Impuesto_Pct;Precio_Final_Cliente;Ganancia_Estimada_Unit;Valor_Stock_Costo
+AGRO-001;"Papa Cardinal (Granel)";"Verduras y Tubérculos";weight;kg;450;50;520;35;702;19;0;835.38;182;234000
+AGRO-002;"Papa Asterix Roja";"Verduras y Tubérculos";weight;kg;320;40;580;32;765.6;19;0;911.06;185.6;185600
+AGRO-003;"Papa Desiree";"Verduras y Tubérculos";weight;kg;280;40;550;30;715;19;0;850.85;165;154000
+AGRO-004;"Papa Chiloé Nativa";"Verduras y Tubérculos";weight;kg;150;25;950;38;1311;19;0;1560.09;361;142500
+AGRO-005;"Papa Camote / Batata";"Verduras y Tubérculos";weight;kg;120;20;1100;35;1485;19;0;1767.15;385;132000
+AGRO-006;"Papa Malla 5 kg";"Verduras y Tubérculos";pack;malla;80;15;2500;28;3200;19;0;3808;700;200000
+AGRO-007;"Papa Saco 25 kg";"Verduras y Tubérculos";pack;saco;45;10;11500;22;14030;19;0;16695.7;2530;517500
+AGRO-008;"Papa Saco 50 kg";"Verduras y Tubérculos";pack;saco;25;5;22000;18;25960;19;0;30892.4;3960;550000
+AGRO-009;"Papa Prefrita Congelada 2.5 kg";"Verduras y Tubérculos";pack;bolsa;60;12;3400;30;4420;19;0;5259.8;1020;204000
+AGRO-010;"Papa Semilla Certificada 25 kg";"Semillas y Cultivo";pack;saco;30;5;14800;25;18500;19;0;22015;3700;444000
+AGRO-011;"Trigo Blanco Entero";"Granos y Cereales";weight;kg;500;60;620;30;806;19;0;959.14;186;310000
+AGRO-012;"Trigo Mote Pelado";"Granos y Cereales";weight;kg;240;30;980;35;1323;19;0;1574.37;343;235200
+AGRO-013;"Trigo Partido / Burgol";"Granos y Cereales";weight;kg;180;25;1050;32;1386;19;0;1649.34;336;189000
+AGRO-014;"Trigo Sarraceno";"Granos y Cereales";weight;kg;95;15;2100;35;2835;19;0;3373.65;735;199500
+AGRO-015;"Trigo Saco 25 kg";"Granos y Cereales";pack;saco;40;8;14500;20;17400;19;0;20706;2900;580000
+AGRO-016;"Trigo Saco 50 kg";"Granos y Cereales";pack;saco;22;5;28000;18;33040;19;0;39317.6;5040;616000
+AGRO-017;"Salvado de Trigo";"Granos y Cereales";weight;kg;160;20;750;35;1012.5;19;0;1204.88;262.5;120000
+AGRO-018;"Germen de Trigo";"Granos y Cereales";weight;kg;75;10;2400;40;3360;19;0;3998.4;960;180000
+AGRO-019;"Harina de Trigo Sin Polvos";"Harinas y Derivados";weight;kg;400;50;780;30;1014;19;0;1206.66;234;312000
+AGRO-020;"Harina de Trigo Con Polvos";"Harinas y Derivados";weight;kg;260;40;840;30;1092;19;0;1299.48;252;218400
+AGRO-021;"Harina Integral de Trigo";"Harinas y Derivados";weight;kg;190;25;960;34;1286.4;19;0;1530.82;326.4;182400
+AGRO-022;"Harina Tostada de Trigo";"Harinas y Derivados";weight;kg;210;30;1150;35;1552.5;19;0;1847.48;402.5;241500
+AGRO-023;"Harina de Trigo Saco 25 kg";"Harinas y Derivados";pack;saco;55;10;17500;20;21000;19;0;24990;3500;962500
+AGRO-024;"Harina Panadera Fuerza 25 kg";"Harinas y Derivados";pack;saco;35;8;19200;22;23424;19;0;27874.56;4224;672000
+AGRO-025;"Sémola de Trigo Fina";"Harinas y Derivados";weight;kg;130;20;1100;32;1452;19;0;1727.88;352;143000
+AGRO-026;"Maíz Amarillo Entero";"Granos y Cereales";weight;kg;600;80;480;30;624;19;0;742.56;144;288000
+AGRO-027;"Maíz Chancado / Partido";"Granos y Cereales";weight;kg;420;50;530;30;689;19;0;819.91;159;222600
+AGRO-028;"Maíz Curagua / Palomitas";"Granos y Cereales";weight;kg;160;20;1150;38;1587;19;0;1888.53;437;184000
+AGRO-029;"Maíz Mote Blanco";"Granos y Cereales";weight;kg;140;20;1250;35;1687.5;19;0;2008.13;437.5;175000
+AGRO-030;"Maíz Morado Seco";"Granos y Cereales";weight;kg;70;10;2300;35;3105;19;0;3694.95;805;161000
+AGRO-031;"Maíz Amarillo Saco 25 kg";"Granos y Cereales";pack;saco;50;10;11200;20;13440;19;0;15993.6;2240;560000
+AGRO-032;"Maíz Amarillo Saco 50 kg";"Granos y Cereales";pack;saco;30;6;21500;18;25370;19;0;30190.3;3870;645000
+AGRO-033;"Harina de Maíz Amarilla (Polenta)";"Harinas y Derivados";weight;kg;180;25;990;35;1336.5;19;0;1590.44;346.5;178200
+AGRO-034;"Harina de Maíz Blanca Precocida";"Harinas y Derivados";weight;kg;170;25;1350;32;1782;19;0;2120.58;432;229500
+AGRO-035;"Fécula de Maíz (Maicena)";"Harinas y Derivados";weight;kg;110;15;1450;36;1972;19;0;2346.68;522;159500
+AGRO-036;"Choclo Pastelero Congelado";"Verduras y Tubérculos";weight;kg;90;15;1800;32;2376;19;0;2827.44;576;162000
+AGRO-037;"Choclo Humero Unidad";"Verduras y Tubérculos";unit;unid.;200;30;350;40;490;19;0;583.1;140;70000
+AGRO-038;"Avena Laminada Tradicional";"Granos y Cereales";weight;kg;220;30;1100;35;1485;19;0;1767.15;385;242000
+AGRO-039;"Avena Instantánea";"Granos y Cereales";weight;kg;180;25;1200;35;1620;19;0;1927.8;420;216000
+AGRO-040;"Avena Integral Grano";"Granos y Cereales";weight;kg;140;20;890;32;1174.8;19;0;1398.01;284.8;124600
+AGRO-041;"Avena Saco 25 kg";"Granos y Cereales";pack;saco;25;5;21000;20;25200;19;0;29988;4200;525000
+AGRO-042;"Cebada Perlada";"Granos y Cereales";weight;kg;120;20;1050;32;1386;19;0;1649.34;336;126000
+AGRO-043;"Cebada Forrajera Saco 25 kg";"Alimento Animal";pack;saco;35;8;12500;22;15250;19;0;18147.5;2750;437500
+AGRO-044;"Centeno Grano Entero";"Granos y Cereales";weight;kg;85;15;1300;35;1755;19;0;2088.45;455;110500
+AGRO-045;"Harina de Centeno";"Harinas y Derivados";weight;kg;90;15;1550;35;2092.5;19;0;2490.08;542.5;139500
+AGRO-046;"Arroz Grado 1 Largo";"Granos y Cereales";weight;kg;350;50;1050;28;1344;19;0;1599.36;294;367500
+AGRO-047;"Arroz Grado 2 Económico";"Granos y Cereales";weight;kg;300;40;880;28;1126.4;19;0;1340.42;246.4;264000
+AGRO-048;"Arroz Integral";"Granos y Cereales";weight;kg;130;20;1350;32;1782;19;0;2120.58;432;175500
+AGRO-049;"Arroz Saco 25 kg";"Granos y Cereales";pack;saco;30;5;24500;18;28910;19;0;34402.9;4410;735000
+AGRO-050;"Quínoa Blanca Real";"Granos y Cereales";weight;kg;90;15;2800;35;3780;19;0;4498.2;980;252000
+AGRO-051;"Quínoa Tricolor";"Granos y Cereales";weight;kg;65;10;3200;35;4320;19;0;5140.8;1120;208000
+AGRO-052;"Poroto Tórtola";Legumbres;weight;kg;200;30;1750;30;2275;19;0;2707.25;525;350000
+AGRO-053;"Poroto Hallado";Legumbres;weight;kg;180;25;1650;30;2145;19;0;2552.55;495;297000
+AGRO-054;"Poroto Negro";Legumbres;weight;kg;190;25;1550;32;2046;19;0;2434.74;496;294500
+AGRO-055;"Poroto Blanco Coscorrón";Legumbres;weight;kg;140;20;1900;30;2470;19;0;2939.3;570;266000
+AGRO-056;"Poroto Burro";Legumbres;weight;kg;120;20;1850;30;2405;19;0;2861.95;555;222000
+AGRO-057;"Lenteja 6 mm";Legumbres;weight;kg;210;30;1650;32;2178;19;0;2591.82;528;346500
+AGRO-058;"Lenteja 4 mm Chica";Legumbres;weight;kg;160;25;1450;32;1914;19;0;2277.66;464;232000
+AGRO-059;"Lenteja Roja Partida";Legumbres;weight;kg;85;15;2100;35;2835;19;0;3373.65;735;178500
+AGRO-060;"Garbanzo Sin Piel";Legumbres;weight;kg;130;20;1950;32;2574;19;0;3063.06;624;253500
+AGRO-061;"Garbanzo Con Piel";Legumbres;weight;kg;110;15;1750;32;2310;19;0;2748.9;560;192500
+AGRO-062;"Arveja Partida Verde";Legumbres;weight;kg;150;20;1250;35;1687.5;19;0;2008.13;437.5;187500
+AGRO-063;"Arveja Entera Seca";Legumbres;weight;kg;120;15;1150;35;1552.5;19;0;1847.48;402.5;138000
+AGRO-064;"Chía Negra Granel";"Semillas y Frutos Secos";weight;kg;60;10;3400;38;4692;19;0;5583.48;1292;204000
+AGRO-065;"Linaza Dorada";"Semillas y Frutos Secos";weight;kg;75;10;2200;38;3036;19;0;3612.84;836;165000
+AGRO-066;"Linaza Café";"Semillas y Frutos Secos";weight;kg;90;15;1800;35;2430;19;0;2891.7;630;162000
+AGRO-067;"Maravilla / Girasol Pelado";"Semillas y Frutos Secos";weight;kg;80;15;2600;35;3510;19;0;4176.9;910;208000
+AGRO-068;"Maravilla Con Cáscara Saco 20 kg";"Alimento Animal";pack;saco;20;4;19500;22;23790;19;0;28310.1;4290;390000
+AGRO-069;"Sésamo Blanco";"Semillas y Frutos Secos";weight;kg;50;10;3100;38;4278;19;0;5090.82;1178;155000
+AGRO-070;"Zapallo Pepita Pelada";"Semillas y Frutos Secos";weight;kg;45;8;4500;35;6075;19;0;7229.25;1575;202500
+AGRO-071;"Aceite Maravilla Bidón 5 L";"Aceites y Líquidos";volume;L;75;15;1650;28;2112;19;0;2513.28;462;123750
+AGRO-072;"Aceite Vegetal Botella 1 L";"Aceites y Líquidos";unit;unid.;140;24;1450;28;1856;19;0;2208.64;406;203000
+AGRO-073;"Aceite Oliva Extra Virgen 500 ml";"Aceites y Líquidos";unit;unid.;48;10;4800;32;6336;19;0;7539.84;1536;230400
+AGRO-074;"Vinagre de Vino Tinto 1 L";"Aceites y Líquidos";volume;L;60;10;950;35;1282.5;19;0;1526.18;332.5;57000
+AGRO-075;"Miel Pura de Abeja Multifloral";"Endulzantes y Otros";weight;kg;80;12;4200;35;5670;19;0;6747.3;1470;336000
+AGRO-076;"Azúcar Blanca Granulada";"Endulzantes y Otros";weight;kg;300;40;920;25;1150;19;0;1368.5;230;276000
+AGRO-077;"Azúcar Rubia de Caña";"Endulzantes y Otros";weight;kg;120;20;1250;30;1625;19;0;1933.75;375;150000
+AGRO-078;"Sal de Mar Fina";"Condimentos y Sal";weight;kg;200;30;450;40;630;19;0;749.7;180;90000
+AGRO-079;"Sal de Mar Gruesa";"Condimentos y Sal";weight;kg;180;25;420;40;588;19;0;699.72;168;75600
+AGRO-080;"Sal Ganadera Bloque 5 kg";"Alimento Animal";unit;bloque;30;6;3200;30;4160;19;0;4950.4;960;96000
+AGRO-081;"Cebolla Morada Granel";"Verduras y Tubérculos";weight;kg;220;30;750;35;1012.5;19;0;1204.88;262.5;165000
+AGRO-082;"Cebolla Valenciana Malla 10 kg";"Verduras y Tubérculos";pack;malla;40;8;5800;28;7424;19;0;8834.56;1624;232000
+AGRO-083;"Zanahoria Granel";"Verduras y Tubérculos";weight;kg;190;30;620;35;837;19;0;996.03;217;117800
+AGRO-084;"Zapallo Camote Trozo";"Verduras y Tubérculos";weight;kg;150;25;850;35;1147.5;19;0;1365.52;297.5;127500
+AGRO-085;"Ajo Chilote Cabeza";"Verduras y Tubérculos";unit;unid.;120;20;450;45;652.5;19;0;776.47;202.5;54000
+AGRO-086;"Ajo Blanco Malla 1 kg";"Verduras y Tubérculos";pack;malla;55;10;2800;35;3780;19;0;4498.2;980;154000
+AGRO-087;"Alimento Gallina Ponedora 25 kg";"Alimento Animal";pack;saco;40;8;13800;22;16836;19;0;20034.84;3036;552000
+AGRO-088;"Alimento Pollo Engorde 25 kg";"Alimento Animal";pack;saco;35;8;14200;22;17324;19;0;20615.56;3124;497000
+AGRO-089;"Alimento Cerdo Crecimiento 25 kg";"Alimento Animal";pack;saco;25;5;13500;22;16470;19;0;19599.3;2970;337500
+AGRO-090;"Afrechillo de Trigo Saco 25 kg";"Alimento Animal";pack;saco;45;10;9800;24;12152;19;0;14460.88;2352;441000
+AGRO-091;"Fardo de Alfalfa Seca";"Alimento Animal";unit;fardo;60;12;5500;25;6875;19;0;8181.25;1375;330000
+AGRO-092;"Pellets de Alfalfa Saco 25 kg";"Alimento Animal";pack;saco;30;6;11500;24;14260;19;0;16969.4;2760;345000
+AGRO-093;"Fertilizante Urea Granulada 25 kg";"Insumos Agrícolas";pack;saco;28;5;18500;20;22200;19;0;26418;3700;518000
+AGRO-094;"Fertilizante NPK 15-15-15 25 kg";"Insumos Agrícolas";pack;saco;24;5;21000;20;25200;19;0;29988;4200;504000
+AGRO-095;"Humus de Lombriz Saco 20 kg";"Insumos Agrícolas";pack;saco;35;8;6500;32;8580;19;0;10210.2;2080;227500
+AGRO-096;"Tierra de Hoja Harneada 25 L";"Insumos Agrícolas";pack;saco;50;10;2400;35;3240;19;0;3855.6;840;120000
+AGRO-097;"Saco Polipropileno Vacío 50 kg";"Envases y Empaques";unit;unid.;300;50;280;45;406;19;0;483.14;126;84000
+AGRO-098;"Malla Raschel Cebollera 10 kg";"Envases y Empaques";unit;unid.;400;60;160;45;232;19;0;276.08;72;64000
+AGRO-099;"Hilo Coser Sacos Cono 200 g";"Envases y Empaques";unit;cono;45;10;1400;38;1932;19;0;2299.08;532;63000
+AGRO-100;"Bandeja Huevos Campo 30 unid.";"Huevos y Lácteos";pack;bandeja;70;15;5200;26;6552;19;0;7796.88;1352;364000

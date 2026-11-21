@@ -1563,4 +1563,37 @@ document.getElementById('btn-load-demo').addEventListener('click', async () => {
   }
 });
 
+// ==================== IMPORTAR CSV ====================
+document.getElementById('btn-import-csv').addEventListener('click', () => {
+  document.getElementById('csv-file-input').click();
+});
+
+document.getElementById('csv-file-input').addEventListener('change', async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('store_id', String(getConcreteStoreId()));
+
+  try {
+    const res = await fetch('api/import_csv.php', {
+      method: 'POST',
+      body: formData,
+    });
+    const data = await res.json();
+    if (!res.ok || data.ok === false) {
+      throw new Error(data.error || `Error HTTP ${res.status}`);
+    }
+    toast(`CSV importado: ${data.created} creados, ${data.updated} actualizados.`);
+    await loadSettings();
+    await loadProducts();
+    loadDashboard();
+  } catch (err) {
+    toast(err.message, 'error');
+  } finally {
+    e.target.value = '';
+  }
+});
+
 initApp();

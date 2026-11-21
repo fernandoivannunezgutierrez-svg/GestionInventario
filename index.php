@@ -240,6 +240,8 @@
             <p class="page-subtitle">Control por cantidad, peso, volumen o paquetes, con costo, IVA, precio final y ganancia por unidad</p>
           </div>
           <div class="topbar-actions">
+            <input type="file" id="csv-file-input" accept=".csv,text/csv" style="display:none;">
+            <button class="btn btn-outline" id="btn-import-csv">⬆️ Importar CSV</button>
             <button class="btn btn-primary" id="btn-new-product">+ Nuevo Producto</button>
           </div>
         </div>
